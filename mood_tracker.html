@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>기분 트래커</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#fff0f5;font-family:'Noto Sans KR',sans-serif;padding:16px;min-height:100vh;}
+.mc{background:white;border-radius:16px;border:1.5px solid #ffd0e0;padding:16px;margin-bottom:12px;}
+.mt{font-size:14px;font-weight:700;color:#c0406a;margin-bottom:12px;}
+.ab-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
+.aBtn{border:1.5px solid #ffaac0;background:white;border-radius:20px;padding:5px 12px;font-size:12px;cursor:pointer;color:#a05070;font-family:'Noto Sans KR',sans-serif;transition:all 0.15s;}
+.aBtn.on{background:#ff69a0;color:white;border-color:#ff69a0;}
+.mood-row{display:flex;gap:8px;justify-content:center;}
+.mBtn{background:white;border:2px solid #ffd0e0;border-radius:14px;padding:10px 12px;font-size:26px;cursor:pointer;flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;transition:all 0.15s;}
+.mBtn span{font-size:10px;color:#c06080;font-family:'Noto Sans KR',sans-serif;}
+.mBtn:hover{background:#fff0f5;border-color:#ff88b0;}
+.mBtn:disabled{opacity:0.5;cursor:not-allowed;}
+.log-item{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#fff8fb;border-radius:10px;border:1px solid #ffd0e0;margin-bottom:6px;animation:fadeIn 0.2s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:translateY(0);}}
+.log-emoji{font-size:22px;}
+.log-info{flex:1;}
+.log-name{font-size:13px;font-weight:700;color:#c0406a;}
+.log-label{font-size:11px;color:#d080a0;}
+.log-time{font-size:11px;color:#cca0b0;}
+.del-btn{background:none;border:none;cursor:pointer;color:#ffaac0;font-size:13px;}
+.bar-row{display:flex;align-items:center;gap:8px;margin:4px 0;}
+.bar-label{font-size:18px;width:26px;text-align:center;}
+.bar-track{flex:1;height:10px;background:#ffd0e0;border-radius:6px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:6px;background:#ff69a0;transition:width 0.4s;}
+.bar-count{font-size:11px;color:#c06080;width:20px;text-align:right;}
+.empty{text-align:center;color:#cca0b0;font-size:13px;padding:16px 0;}
+.conn{text-align:center;font-size:11px;padding:6px 0;border-radius:8px;margin-bottom:10px;}
+.conn.ok{color:#60a060;background:#f0fff0;}
+.conn.err{color:#e06060;background:#fff0f0;}
+.conn.ing{color:#a0a0a0;background:#f8f8f8;}
+</style>
+</head>
+<body>
+
+<div id="connStatus" class="conn ing">🔥 Firebase 연결 중...</div>
+
+<div class="mc">
+  <div class="mt">🎨 우리들의 실시간 기분 트래커</div>
+  <div class="ab-row">
+    <button class="aBtn on" id="ma0">🐰 소희</button>
+    <button class="aBtn" id="ma1">🐱 혜진</button>
+    <button class="aBtn" id="ma2">🐹 혜연</button>
+    <button class="aBtn" id="ma3">🦊 수주</button>
+  </div>
+  <div style="font-size:12px;color:#c06080;margin-bottom:8px;text-align:center;">지금 내 기분:</div>
+  <div class="mood-row">
+    <button class="mBtn" id="mb0">🥰<span>설레요</span></button>
+    <button class="mBtn" id="mb1">😭<span>슬퍼요</span></button>
+    <button class="mBtn" id="mb2">🤔<span>생각중</span></button>
+    <button class="mBtn" id="mb3">🤩<span>신나요</span></button>
+  </div>
+</div>
+
+<div class="mc">
+  <div class="mt">📋 기분 기록</div>
+  <div id="logList"><div class="empty">아직 기분 데이터가 없습니다.</div></div>
+</div>
+
+<div class="mc" id="statsCard" style="display:none;">
+  <div class="mt">📊 기분 통계</div>
+  <div id="statsBars"></div>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getDatabase, ref, push, remove, onValue, query, orderByChild, limitToLast } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDy80sjZJyaaNOCfZomxiVwh01IMgWQsdQ",
+  authDomain: "notion-widgets-a840f.firebaseapp.com",
+  databaseURL: "https://notion-widgets-a840f-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "notion-widgets-a840f",
+  storageBucket: "notion-widgets-a840f.firebasestorage.app",
+  messagingSenderId: "78334271643",
+  appId: "1:78334271643:web:1e7034bfd0e051e3f1e63e"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const moodRef = ref(db, 'mood/logs');
+const connStatus = document.getElementById('connStatus');
+
+const AUTHORS = [
+  {name:'소희', emoji:'🐰'},
+  {name:'혜진', emoji:'🐱'},
+  {name:'혜연', emoji:'🐹'},
+  {name:'수주', emoji:'🦊'}
+];
+const MOODS = [
+  {emoji:'🥰', label:'설레요'},
+  {emoji:'😭', label:'슬퍼요'},
+  {emoji:'🤔', label:'생각중'},
+  {emoji:'🤩', label:'신나요'}
+];
+
+let cur = 0;
+const maBtns = [0,1,2,3].map(i => document.getElementById('ma'+i));
+const mBtns = [0,1,2,3].map(i => document.getElementById('mb'+i));
+const logList = document.getElementById('logList');
+const statsCard = document.getElementById('statsCard');
+const statsBars = document.getElementById('statsBars');
+
+maBtns.forEach((b,i) => b.addEventListener('click', () => {
+  cur = i;
+  maBtns.forEach((x,j) => x.classList.toggle('on', j===i));
+}));
+
+mBtns.forEach((b, mi) => b.addEventListener('click', async () => {
+  mBtns.forEach(x => x.disabled = true);
+  const now = new Date();
+  const t = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+  try {
+    await push(moodRef, {
+      authorName: AUTHORS[cur].name,
+      authorEmoji: AUTHORS[cur].emoji,
+      moodEmoji: MOODS[mi].emoji,
+      moodLabel: MOODS[mi].label,
+      time: t,
+      ts: Date.now()
+    });
+    b.style.transform = 'scale(1.15)';
+    setTimeout(() => b.style.transform = '', 300);
+  } catch(e) {
+    alert('저장 실패: ' + e.message);
+  }
+  mBtns.forEach(x => x.disabled = false);
+}));
+
+const q = query(moodRef, orderByChild('ts'), limitToLast(30));
+onValue(q, snapshot => {
+  connStatus.textContent = '✅ 실시간 연결됨 — 4명이 함께 보는 기분 트래커예요';
+  connStatus.className = 'conn ok';
+  const data = snapshot.val();
+  if (!data) {
+    logList.innerHTML = '<div class="empty">아직 기분 데이터가 없습니다.</div>';
+    statsCard.style.display = 'none';
+    return;
+  }
+  const logs = Object.entries(data).sort((a,b) => b[1].ts - a[1].ts);
+  logList.innerHTML = '';
+  logs.forEach(([key, l]) => {
+    const d = document.createElement('div');
+    d.className = 'log-item';
+    d.innerHTML =
+      '<span class="log-emoji">'+l.moodEmoji+'</span>'
+      + '<div class="log-info"><div class="log-name">'+l.authorEmoji+' '+l.authorName+'</div>'
+      + '<div class="log-label">'+l.moodLabel+'</div></div>'
+      + '<span class="log-time">'+l.time+'</span>'
+      + '<button class="del-btn" data-key="'+key+'">✕</button>';
+    logList.appendChild(d);
+  });
+  logList.querySelectorAll('.del-btn').forEach(btn => {
+    btn.addEventListener('click', () => remove(ref(db, 'mood/logs/' + btn.dataset.key)));
+  });
+
+  // 통계
+  statsCard.style.display = 'block';
+  const counts = [0,0,0,0];
+  logs.forEach(([,l]) => {
+    const idx = MOODS.findIndex(m => m.emoji === l.moodEmoji);
+    if (idx >= 0) counts[idx]++;
+  });
+  const mx = Math.max(...counts, 1);
+  statsBars.innerHTML = '';
+  MOODS.forEach((m,i) => {
+    const pct = Math.round(counts[i]/mx*100);
+    const d = document.createElement('div');
+    d.className = 'bar-row';
+    d.innerHTML = '<span class="bar-label">'+m.emoji+'</span>'
+      + '<div class="bar-track"><div class="bar-fill" style="width:'+pct+'%"></div></div>'
+      + '<span class="bar-count">'+counts[i]+'</span>';
+    statsBars.appendChild(d);
+  });
+}, err => {
+  connStatus.textContent = '❌ 연결 실패: ' + err.message;
+  connStatus.className = 'conn err';
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>밸런스 투표</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#fff0f5;font-family:'Noto Sans KR',sans-serif;padding:16px;min-height:100vh;}
+.vc{background:white;border-radius:16px;border:1.5px solid #ffd0e0;padding:16px;margin-bottom:12px;}
+.vt{font-size:14px;font-weight:700;color:#c0406a;margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+.make-btn{background:#c8a0ff;color:white;border:none;border-radius:14px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;font-weight:700;margin-left:auto;}
+.make-btn:hover{background:#b080f0;}
+.ab-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
+.aBtn{border:1.5px solid #ffaac0;background:white;border-radius:20px;padding:5px 12px;font-size:12px;cursor:pointer;color:#a05070;font-family:'Noto Sans KR',sans-serif;transition:all 0.15s;}
+.aBtn.on{background:#ff69a0;color:white;border-color:#ff69a0;}
+.create-area{background:#fff8fb;border-radius:12px;border:1.5px dashed #ffaac0;padding:14px;margin-bottom:12px;}
+.create-area label{font-size:12px;color:#c06080;display:block;margin-bottom:4px;font-weight:500;}
+.create-area input{width:100%;border:1.5px solid #ffd0e0;border-radius:10px;padding:7px 10px;font-size:13px;font-family:'Noto Sans KR',sans-serif;color:#333;margin-bottom:8px;outline:none;}
+.create-area input:focus{border-color:#ff69a0;}
+.opt-row{display:flex;gap:8px;margin-bottom:8px;}
+.opt-row input{flex:1;margin-bottom:0;}
+.create-sub{background:#ff69a0;color:white;border:none;border-radius:14px;padding:8px 0;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;width:100%;}
+.create-sub:hover{background:#ff4488;}
+.poll{background:#fff8fb;border-radius:14px;border:1.5px solid #ffd0e0;padding:14px;margin-bottom:10px;animation:fadeIn 0.2s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:translateY(0);}}
+.poll-hd{display:flex;align-items:center;margin-bottom:10px;}
+.poll-q{font-size:14px;font-weight:700;color:#333;flex:1;}
+.del-poll{background:none;border:none;cursor:pointer;color:#ffaac0;font-size:15px;flex-shrink:0;}
+.opt-btn{width:100%;background:white;border:1.5px solid #ffd0e0;border-radius:12px;padding:10px 14px;font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;color:#555;margin-bottom:6px;text-align:left;position:relative;overflow:hidden;display:block;transition:border-color 0.15s;}
+.opt-btn:hover{border-color:#ff69a0;}
+.opt-btn.voted{border-color:#ff69a0;font-weight:700;color:#c0406a;}
+.opt-bar{position:absolute;top:0;left:0;height:100%;border-radius:10px;z-index:0;transition:width 0.4s;}
+.opt-text{position:relative;z-index:1;display:flex;justify-content:space-between;align-items:center;}
+.result-bar{display:flex;height:10px;border-radius:8px;overflow:hidden;margin-top:8px;}
+.rb-l{height:100%;background:#ff69a0;transition:width 0.4s;}
+.rb-r{height:100%;background:#c8a0ff;transition:width 0.4s;}
+.result-pct{display:flex;justify-content:space-between;font-size:11px;color:#c06080;margin-top:3px;}
+.poll-maker{font-size:11px;color:#cca0b0;text-align:center;margin-top:6px;}
+.empty{text-align:center;color:#cca0b0;font-size:13px;padding:16px 0;}
+.conn{text-align:center;font-size:11px;padding:6px 0;border-radius:8px;margin-bottom:10px;}
+.conn.ok{color:#60a060;background:#f0fff0;}
+.conn.err{color:#e06060;background:#fff0f0;}
+.conn.ing{color:#a0a0a0;background:#f8f8f8;}
+</style>
+</head>
+<body>
+
+<div id="connStatus" class="conn ing">🔥 Firebase 연결 중...</div>
+
+<div class="vc">
+  <div class="vt">
+    ⚔️ 단판 미니 밸런스 투표 창
+    <button class="make-btn" id="makeBtnTop">🛠️ 투표 만들기</button>
+  </div>
+  <div class="ab-row">
+    <button class="aBtn on" id="va0">🐰 소희</button>
+    <button class="aBtn" id="va1">🐱 혜진</button>
+    <button class="aBtn" id="va2">🐹 혜연</button>
+    <button class="aBtn" id="va3">🦊 수주</button>
+  </div>
+  <div class="create-area" id="createArea" style="display:none;">
+    <label>투표 질문</label>
+    <input type="text" id="qInput" placeholder="예) 오늘 저녁 뭐 먹을까?">
+    <label>선택지 2개</label>
+    <div class="opt-row">
+      <input type="text" id="aInput" placeholder="선택지 A">
+      <input type="text" id="bInput" placeholder="선택지 B">
+    </div>
+    <button class="create-sub" id="createSub">✨ 투표 만들기</button>
+  </div>
+  <div id="pollList"><div class="empty">아직 투표가 없어요! 투표를 만들어보세요 🌸</div></div>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getDatabase, ref, push, remove, update, onValue, get } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDy80sjZJyaaNOCfZomxiVwh01IMgWQsdQ",
+  authDomain: "notion-widgets-a840f.firebaseapp.com",
+  databaseURL: "https://notion-widgets-a840f-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "notion-widgets-a840f",
+  storageBucket: "notion-widgets-a840f.firebasestorage.app",
+  messagingSenderId: "78334271643",
+  appId: "1:78334271643:web:1e7034bfd0e051e3f1e63e"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const pollsRef = ref(db, 'vote/polls');
+const connStatus = document.getElementById('connStatus');
+
+const AUTHORS = [
+  {name:'소희', emoji:'🐰'},
+  {name:'혜진', emoji:'🐱'},
+  {name:'혜연', emoji:'🐹'},
+  {name:'수주', emoji:'🦊'}
+];
+
+let cur = 0, showCreate = false;
+const vaBtns = [0,1,2,3].map(i => document.getElementById('va'+i));
+const createArea = document.getElementById('createArea');
+const pollList = document.getElementById('pollList');
+
+vaBtns.forEach((b,i) => b.addEventListener('click', () => {
+  cur = i;
+  vaBtns.forEach((x,j) => x.classList.toggle('on', j===i));
+}));
+
+document.getElementById('makeBtnTop').addEventListener('click', () => {
+  showCreate = !showCreate;
+  createArea.style.display = showCreate ? 'block' : 'none';
+});
+
+document.getElementById('createSub').addEventListener('click', async () => {
+  const q = document.getElementById('qInput').value.trim();
+  const a = document.getElementById('aInput').value.trim();
+  const b = document.getElementById('bInput').value.trim();
+  if (!q || !a || !b) { alert('질문과 선택지 2개를 모두 입력해주세요!'); return; }
+  await push(pollsRef, {
+    q,
+    creatorName: AUTHORS[cur].name,
+    creatorEmoji: AUTHORS[cur].emoji,
+    optA: { label: a, voters: {} },
+    optB: { label: b, voters: {} },
+    ts: Date.now()
+  });
+  document.getElementById('qInput').value = '';
+  document.getElementById('aInput').value = '';
+  document.getElementById('bInput').value = '';
+  showCreate = false;
+  createArea.style.display = 'none';
+});
+
+async function castVote(pollKey, chosenOpt) {
+  const voterName = AUTHORS[cur].name;
+  const otherOpt = chosenOpt === 'optA' ? 'optB' : 'optA';
+  const pollSnap = await get(ref(db, 'vote/polls/' + pollKey));
+  const poll = pollSnap.val();
+  if (!poll) return;
+  const updates = {};
+  // 기존 반대편 투표 취소
+  if (poll[otherOpt].voters && poll[otherOpt].voters[voterName]) {
+    updates['vote/polls/' + pollKey + '/' + otherOpt + '/voters/' + voterName] = null;
+  }
+  // 이미 같은 곳에 투표했으면 취소(토글)
+  if (poll[chosenOpt].voters && poll[chosenOpt].voters[voterName]) {
+    updates['vote/polls/' + pollKey + '/' + chosenOpt + '/voters/' + voterName] = null;
+  } else {
+    updates['vote/polls/' + pollKey + '/' + chosenOpt + '/voters/' + voterName] = true;
+  }
+  await update(ref(db), updates);
+}
+
+onValue(pollsRef, snapshot => {
+  connStatus.textContent = '✅ 실시간 연결됨 — 4명이 함께 투표해요';
+  connStatus.className = 'conn ok';
+  const data = snapshot.val();
+  if (!data) {
+    pollList.innerHTML = '<div class="empty">아직 투표가 없어요! 투표를 만들어보세요 🌸</div>';
+    return;
+  }
+  const voter = AUTHORS[cur].name;
+  const polls = Object.entries(data).sort((a,b) => b[1].ts - a[1].ts);
+  pollList.innerHTML = '';
+  polls.forEach(([key, poll]) => {
+    const votersA = poll.optA.voters ? Object.keys(poll.optA.voters) : [];
+    const votersB = poll.optB.voters ? Object.keys(poll.optB.voters) : [];
+    const cntA = votersA.length;
+    const cntB = votersB.length;
+    const tot = cntA + cntB;
+    const pA = tot === 0 ? 50 : Math.round(cntA / tot * 100);
+    const pB = 100 - pA;
+    const myA = votersA.includes(voter);
+    const myB = votersB.includes(voter);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'poll';
+
+    const hd = document.createElement('div');
+    hd.className = 'poll-hd';
+    const qEl = document.createElement('div');
+    qEl.className = 'poll-q';
+    qEl.textContent = poll.q;
+    const delBtn = document.createElement('button');
+    delBtn.className = 'del-poll';
+    delBtn.textContent = '✕';
+    delBtn.addEventListener('click', () => remove(ref(db, 'vote/polls/' + key)));
+    hd.appendChild(qEl); hd.appendChild(delBtn);
+    wrap.appendChild(hd);
+
+    [['optA', poll.optA.label, myA, '#ffe0ea', pA],
+     ['optB', poll.optB.label, myB, '#e8c8ff', pB]].forEach(([optKey, label, voted, barColor, pct]) => {
+      const btn = document.createElement('button');
+      btn.className = 'opt-btn' + (voted ? ' voted' : '');
+      btn.innerHTML =
+        '<div class="opt-bar" style="width:'+(tot>0?pct:0)+'%;background:'+barColor+'"></div>'
+        + '<div class="opt-text"><span>'+label+'</span><span>'+(tot>0?pct+'%':'')+'</span></div>';
+      btn.addEventListener('click', () => castVote(key, optKey));
+      wrap.appendChild(btn);
+    });
+
+    const rb = document.createElement('div');
+    rb.className = 'result-bar';
+    rb.innerHTML = '<div class="rb-l" style="width:'+pA+'%"></div><div class="rb-r" style="width:'+pB+'%"></div>';
+    wrap.appendChild(rb);
+
+    const rp = document.createElement('div');
+    rp.className = 'result-pct';
+    rp.innerHTML = '<span>'+pA+'%</span><span>총 '+tot+'표</span><span>'+pB+'%</span>';
+    wrap.appendChild(rp);
+
+    const mk = document.createElement('div');
+    mk.className = 'poll-maker';
+    mk.textContent = poll.creatorEmoji + ' ' + poll.creatorName + ' 가 만든 투표';
+    wrap.appendChild(mk);
+
+    pollList.appendChild(wrap);
+  });
+}, err => {
+  connStatus.textContent = '❌ 연결 실패: ' + err.message;
+  connStatus.className = 'conn err';
+});
+</script>
+</body>
+</html>

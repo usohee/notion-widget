@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>한 줄 타임라인</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#fff0f5;font-family:'Noto Sans KR',sans-serif;padding:16px;min-height:100vh;}
+.tw-bar{background:white;border-radius:14px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1.5px solid #ffc0cb;}
+.tw-bar-label{font-size:12px;color:#c06080;font-weight:500;white-space:nowrap;}
+.aBtn{border:1.5px solid #ffaac0;background:white;border-radius:20px;padding:5px 13px;font-size:12px;cursor:pointer;color:#a05070;font-family:'Noto Sans KR',sans-serif;transition:all 0.15s;}
+.aBtn:hover{background:#fff0f5;}
+.aBtn.on{background:#ff69a0;color:white;border-color:#ff69a0;}
+.compose{background:white;border-radius:16px;padding:14px;margin-bottom:12px;border:1.5px solid #ffc0cb;}
+.compose-top{display:flex;gap:10px;align-items:flex-start;}
+.cur-av{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+textarea{flex:1;border:none;outline:none;resize:none;font-size:14px;color:#333;font-family:'Noto Sans KR',sans-serif;background:transparent;min-height:60px;width:100%;}
+textarea::placeholder{color:#cca0b0;}
+.compose-foot{display:flex;align-items:center;justify-content:space-between;margin-top:10px;border-top:1px solid #ffe0ea;padding-top:10px;}
+.img-btn{background:none;border:none;cursor:pointer;font-size:22px;padding:2px;}
+.send-btn{background:#ff69a0;color:white;border:none;border-radius:20px;padding:7px 22px;font-size:13px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;}
+.send-btn:hover{background:#ff4488;}
+.send-btn:disabled{background:#ffaac0;cursor:not-allowed;}
+.preview-wrap{margin-top:8px;position:relative;display:inline-block;}
+.preview-wrap img{max-width:100%;border-radius:10px;max-height:160px;object-fit:cover;display:block;}
+.rm-img{position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.5);color:white;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;}
+.tl{display:flex;flex-direction:column;gap:10px;}
+.post{background:white;border-radius:14px;padding:12px 14px;border:1.5px solid #ffd0e0;animation:fadeIn 0.25s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
+.post-hd{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.post-av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.post-name{font-size:13px;font-weight:700;color:#c0406a;}
+.post-time{font-size:11px;color:#cca0b0;margin-left:auto;}
+.post-del{background:none;border:none;cursor:pointer;color:#ffaac0;font-size:14px;margin-left:6px;}
+.post-text{font-size:14px;color:#333;line-height:1.6;word-break:break-all;}
+.post-img{margin-top:8px;width:100%;border-radius:10px;max-height:220px;object-fit:cover;display:block;}
+.empty{text-align:center;color:#cca0b0;font-size:13px;padding:24px 0;}
+.conn{text-align:center;font-size:11px;padding:6px 0;border-radius:8px;margin-bottom:10px;}
+.conn.ok{color:#60a060;background:#f0fff0;}
+.conn.err{color:#e06060;background:#fff0f0;}
+.conn.ing{color:#a0a0a0;background:#f8f8f8;}
+</style>
+</head>
+<body>
+
+<div class="tw-bar">
+  <span class="tw-bar-label">⚡ 현재 작성자:</span>
+  <button class="aBtn on" id="ab0">🐰 소희</button>
+  <button class="aBtn" id="ab1">🐱 혜진</button>
+  <button class="aBtn" id="ab2">🐹 혜연</button>
+  <button class="aBtn" id="ab3">🦊 수주</button>
+</div>
+
+<div class="compose">
+  <div class="compose-top">
+    <div class="cur-av" id="curAv" style="background:#ffaac0;">🐰</div>
+    <textarea id="txta" placeholder="소희(으)로 흔적 남기기..." maxlength="140"></textarea>
+  </div>
+  <div id="prevArea"></div>
+  <div class="compose-foot">
+    <button class="img-btn" id="imgBtn">🖼️</button>
+    <input type="file" id="fileIn" accept="image/*" style="display:none;">
+    <span id="cc" style="font-size:11px;color:#cca0b0;">0/140</span>
+    <button class="send-btn" id="sendBtn">SEND</button>
+  </div>
+</div>
+
+<div id="connStatus" class="conn ing">🔥 Firebase 연결 중...</div>
+
+<div class="tl" id="tl">
+  <div class="empty" id="emptyMsg">아직 남긴 흔적이 없어요 🌸</div>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getDatabase, ref, push, remove, onValue, query, orderByChild, limitToLast } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDy80sjZJyaaNOCfZomxiVwh01IMgWQsdQ",
+  authDomain: "notion-widgets-a840f.firebaseapp.com",
+  databaseURL: "https://notion-widgets-a840f-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "notion-widgets-a840f",
+  storageBucket: "notion-widgets-a840f.firebasestorage.app",
+  messagingSenderId: "78334271643",
+  appId: "1:78334271643:web:1e7034bfd0e051e3f1e63e"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const postsRef = ref(db, 'timeline/posts');
+const connStatus = document.getElementById('connStatus');
+
+const AUTHORS = [
+  {name:'소희', emoji:'🐰', bg:'#ffaac0'},
+  {name:'혜진', emoji:'🐱', bg:'#ffa0d0'},
+  {name:'혜연', emoji:'🐹', bg:'#ffb0c0'},
+  {name:'수주', emoji:'🦊', bg:'#ffb8a8'}
+];
+
+let cur = 0, pendImg = null;
+
+const aBtns = [0,1,2,3].map(i => document.getElementById('ab'+i));
+const curAv = document.getElementById('curAv');
+const txta = document.getElementById('txta');
+const prevArea = document.getElementById('prevArea');
+const cc = document.getElementById('cc');
+const tl = document.getElementById('tl');
+const emptyMsg = document.getElementById('emptyMsg');
+const sendBtn = document.getElementById('sendBtn');
+const fileIn = document.getElementById('fileIn');
+
+function setAuthor(i) {
+  cur = i;
+  aBtns.forEach((b,j) => b.classList.toggle('on', j===i));
+  curAv.textContent = AUTHORS[i].emoji;
+  curAv.style.background = AUTHORS[i].bg;
+  txta.placeholder = AUTHORS[i].name + '(으)로 흔적 남기기...';
+}
+aBtns.forEach((b,i) => b.addEventListener('click', () => setAuthor(i)));
+txta.addEventListener('input', () => { cc.textContent = txta.value.length + '/140'; });
+
+document.getElementById('imgBtn').addEventListener('click', () => fileIn.click());
+fileIn.addEventListener('change', function() {
+  if (!this.files[0]) return;
+  const r = new FileReader();
+  r.onload = e => {
+    pendImg = e.target.result;
+    prevArea.innerHTML = '<div class="preview-wrap"><img src="'+pendImg+'"><button class="rm-img" id="rmImg">✕</button></div>';
+    document.getElementById('rmImg').addEventListener('click', () => { pendImg = null; prevArea.innerHTML = ''; });
+  };
+  r.readAsDataURL(this.files[0]);
+  this.value = '';
+});
+
+sendBtn.addEventListener('click', async () => {
+  const text = txta.value.trim();
+  if (!text && !pendImg) return;
+  sendBtn.disabled = true;
+  const now = new Date();
+  const t = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+  try {
+    await push(postsRef, {
+      authorName: AUTHORS[cur].name,
+      authorEmoji: AUTHORS[cur].emoji,
+      authorBg: AUTHORS[cur].bg,
+      text: text || '',
+      img: pendImg || '',
+      time: t,
+      ts: Date.now()
+    });
+    txta.value = ''; cc.textContent = '0/140'; pendImg = null; prevArea.innerHTML = '';
+  } catch(e) {
+    alert('저장 실패: ' + e.message);
+  }
+  sendBtn.disabled = false;
+});
+
+const q = query(postsRef, orderByChild('ts'), limitToLast(50));
+onValue(q, snapshot => {
+  connStatus.textContent = '✅ 실시간 연결됨 — 4명이 함께 보는 타임라인이에요';
+  connStatus.className = 'conn ok';
+  const data = snapshot.val();
+  if (!data) {
+    tl.innerHTML = '';
+    tl.appendChild(emptyMsg);
+    return;
+  }
+  emptyMsg.remove();
+  const posts = Object.entries(data).sort((a,b) => b[1].ts - a[1].ts);
+  tl.innerHTML = '';
+  posts.forEach(([key, p]) => {
+    const d = document.createElement('div');
+    d.className = 'post';
+    d.innerHTML =
+      '<div class="post-hd">'
+      + '<div class="post-av" style="background:'+p.authorBg+'">'+p.authorEmoji+'</div>'
+      + '<span class="post-name">'+p.authorName+'</span>'
+      + '<span class="post-time">'+p.time+'</span>'
+      + '<button class="post-del" data-key="'+key+'">✕</button>'
+      + '</div>'
+      + (p.text ? '<div class="post-text">'+p.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>')+'</div>' : '')
+      + (p.img ? '<img class="post-img" src="'+p.img+'">' : '');
+    tl.appendChild(d);
+  });
+  tl.querySelectorAll('.post-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      remove(ref(db, 'timeline/posts/' + btn.dataset.key));
+    });
+  });
+}, err => {
+  connStatus.textContent = '❌ 연결 실패: ' + err.message;
+  connStatus.className = 'conn err';
+});
+</script>
+</body>
+</html>
